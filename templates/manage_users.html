@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Users</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #6a11cb, #2575fc);
+            color: #333;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 1200px;
+            background: #fff;
+            border-radius: 15px;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #6a11cb, #2575fc);
+            color: #fff;
+            padding: 20px;
+            text-align: center;
+            border-bottom: 1px solid #ccc;
+        }
+
+        .content {
+            display: flex;
+            flex: 1;
+        }
+
+        .user-list, .user-details {
+            padding: 20px;
+        }
+
+        .user-list {
+            width: 30%;
+            border-right: 1px solid #ccc;
+            background: #f9f9f9;
+            overflow-y: auto;
+        }
+
+        .user-details {
+            width: 70%;
+            padding-left: 40px;
+        }
+
+        h3 {
+            margin-top: 0;
+            color: #444;
+        }
+
+        .user-item {
+            cursor: pointer;
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+            transition: background-color 0.3s, transform 0.3s;
+        }
+
+        .user-item:hover {
+            background-color: #e0e0e0;
+            transform: scale(1.05);
+        }
+
+        .button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 25px;
+            transition: background-color 0.3s, transform 0.3s;
+            text-align: center;
+            display: inline-block;
+            font-size: 16px;
+            line-height: 1.5;
+        }
+
+        .button:hover {
+            background-color: #0056b3;
+            transform: scale(1.05);
+        }
+
+        .edit-icon, .remove-icon {
+            cursor: pointer;
+            margin-left: 10px;
+            transition: color 0.3s, transform 0.3s;
+            font-size: 18px;
+        }
+
+        .edit-icon:hover {
+            color: #0056b3;
+            transform: scale(1.2);
+        }
+
+        .remove-icon:hover {
+            color: #b30000;
+            transform: scale(1.2);
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.5);
+            padding-top: 60px;
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .suggestions {
+            border: 1px solid #ccc;
+            max-height: 100px;
+            overflow-y: auto;
+            background-color: white;
+            position: relative;
+            margin-top: 5px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .suggestion-item {
+            padding: 10px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .suggestion-item:hover {
+            background-color: #e0e0e0;
+        }
+
+        .selected-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 5px;
+            border-bottom: 1px solid #ccc;
+        }
+
+        .user-details table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .user-details th, .user-details td {
+            padding: 10px;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        .user-details th {
+            font-weight: bold;
+            color: #444;
+            width: 150px;
+            text-align: right;
+            padding-right: 10px;
+        }
+
+        .user-details td {
+            text-align: left;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2>Manage Users</h2>
+        </div>
+        <div class="content">
+            <div class="user-list">
+                <h3>User Emails</h3>
+                <ul id="userList">
+                    {% for user in users %}
+                    <li class="user-item" onclick="showUserDetails('{{ user.email }}')">{{ user.email }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            <div class="user-details">
+                <h3>User Details</h3>
+                <div id="userDetails"></div>
+                <button class="button" onclick="addUser()">Add User</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Embed emails in a script tag -->
+    <script>
+        const stEmails = {{ st_emails|tojson }};
+        const ptEmails = {{ pt_emails|tojson }};
+    </script>
+
+    <!-- The Modal -->
+    <div id="idModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h3>Edit IDs</h3>
+            <input type="text" id="idInput" placeholder="Type to search emails..." oninput="showSuggestions(this.value)">
+            <ul id="suggestionsList" class="suggestions"></ul>
+            <h4>Current Items</h4>
+            <ul id="selectedIds"></ul>
+            <button class="button" onclick="submitIds()">Submit</button>
+        </div>
+    </div>
+
+    <script>
+        let selectedIds = [];
+        let currentUserEmail = '';
+        let currentIdType = ''; // 'st' or 'pt'
+
+        function showUserDetails(email) {
+            fetch(`/get_user/${email}`)
+                .then(response => response.json())
+                .then(data => {
+                    const userDetails = document.getElementById('userDetails');
+                    const stIdsArray = Array.isArray(data.st_ids) ? data.st_ids : [];
+                    const ptIdsArray = Array.isArray(data.pt_ids) ? data.pt_ids : [];
+
+                    userDetails.innerHTML = `
+                        <table>
+                            <tr><th>Email:</th><td>${data.email}</td></tr>
+                            <tr><th>Name:</th><td id="userName">${data.name}<i class="fas fa-edit edit-icon" onclick="editName('${data.email}')"></i></td></tr>
+                            <tr><th>Role:</th><td id="userRole">${data.role}<i class="fas fa-edit edit-icon" onclick="editRole('${data.email}')"></i></td></tr>
+                            <tr><th>ST IDs:</th><td id="st_ids">${stIdsArray.length} IDs<i class="fas fa-edit edit-icon" onclick='openModal("${data.email}", "st", ${JSON.stringify(stIdsArray)})'></i></td></tr>
+                            <tr><th>PT IDs:</th><td id="pt_ids">${ptIdsArray.length} IDs<i class="fas fa-edit edit-icon" onclick='openModal("${data.email}", "pt", ${JSON.stringify(ptIdsArray)})'></i></td></tr>
+                        </table>
+                        <button class="button" onclick="updatePassword('${data.email}')">Update Password</button>
+                        <button class="button" onclick="deleteUser('${data.email}')">Delete User</button>
+                    `;
+                });
+        }
+
+        function openModal(email, idType, ids) {
+            currentUserEmail = email;
+            currentIdType = idType;
+            selectedIds = Array.isArray(ids) ? [...ids] : [];
+            renderSelectedIds();
+            document.getElementById('idModal').style.display = "block";
+        }
+
+        function closeModal() {
+            document.getElementById('idModal').style.display = "none";
+        }
+
+        function showSuggestions(query) {
+            const suggestionsList = document.getElementById('suggestionsList');
+            suggestionsList.innerHTML = '';
+
+            if (query.length === 0) return;
+
+            const suggestions = (currentIdType === 'st' ? stEmails : ptEmails)
+                .filter(email => email.toLowerCase().includes(query.toLowerCase()))
+                .slice(0, 3);
+
+            suggestions.forEach(email => {
+                const li = document.createElement('li');
+                li.textContent = email;
+                li.className = 'suggestion-item';
+                li.onclick = () => addId(email);
+                suggestionsList.appendChild(li);
+            });
+        }
+
+        function addId(email) {
+            if (!selectedIds.includes(email)) {
+                selectedIds.push(email);
+                renderSelectedIds();
+            }
+        }
+
+        function renderSelectedIds() {
+            const selectedIdsList = document.getElementById('selectedIds');
+            selectedIdsList.innerHTML = '';
+            selectedIds.forEach(email => {
+                const li = document.createElement('li');
+                li.className = 'selected-item';
+                li.innerHTML = `${email} <i class="fas fa-minus-circle remove-icon" onclick="removeId('${email}')"></i>`;
+                selectedIdsList.appendChild(li);
+            });
+        }
+
+        function removeId(email) {
+            selectedIds = selectedIds.filter(id => id !== email);
+            renderSelectedIds();
+        }
+
+        function submitIds() {
+            const updateField = currentIdType === 'st' ? 'st_ids' : 'pt_ids';
+            fetch('/update_user', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ email: currentUserEmail, [updateField]: selectedIds })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    console.log(`${updateField} updated successfully`);
+                    document.getElementById(`${updateField}`).textContent = `${selectedIds.length} IDs`;
+                    closeModal();
+                }
+            });
+        }
+
+        function editName(email) {
+            const newName = prompt("Enter new name:");
+            if (newName) {
+                fetch('/update_user', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email, name: newName })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        alert('Name updated successfully');
+                        showUserDetails(email);
+                    }
+                });
+            }
+        }
+
+        function editRole(email) {
+            const newRole = prompt("Enter new role:");
+            if (newRole) {
+                fetch('/update_user', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email, role: newRole })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        alert('Role updated successfully');
+                        showUserDetails(email);
+                    }
+                });
+            }
+        }
+
+        function updatePassword(email) {
+            const newPassword = prompt("Enter new password:");
+            if (newPassword) {
+                fetch('/update_password', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email, new_password: newPassword })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        alert('Password updated successfully');
+                    }
+                });
+            }
+        }
+
+        function addUser() {
+            const email = prompt("Enter email:");
+            if (!email) return; // If user clicks Cancel or enters empty string, stop here
+
+            const password = prompt("Enter password:");
+            if (!password) return; // Stop if canceled
+
+            const name = prompt("Enter name:");
+            if (!name) return; // Stop if canceled
+
+            const role = prompt("Enter role:");
+            if (!role) return; // Stop if canceled
+
+            const st_ids_input = prompt("Enter ST IDs (comma-separated):");
+            if (!st_ids_input) return; // Stop if canceled
+            const st_ids = st_ids_input.split(',').map(id => id.trim());
+
+            const pt_ids_input = prompt("Enter PT IDs (comma-separated):");
+            if (!pt_ids_input) return; // Stop if canceled
+            const pt_ids = pt_ids_input.split(',').map(id => id.trim());
+
+            fetch('/add_user', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ email, password, name, role, st_ids, pt_ids })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    alert('User added successfully');
+                    location.reload();
+                }
+            });
+        }
+
+        function deleteUser(email) {
+            if (confirm('Are you sure you want to delete this user?')) {
+                fetch(`/delete_user/${email}`, {
+                    method: 'DELETE'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        alert('User deleted successfully');
+                        location.reload();
+                    }
+                });
+            }
+        }
+    </script>
+</body>
+</html>

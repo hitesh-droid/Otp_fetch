@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Users</title>
+    <style>
+        .user-list {
+            float: left;
+            width: 30%;
+            border-right: 1px solid #ccc;
+            padding-right: 10px;
+        }
+        .user-details {
+            float: left;
+            width: 65%;
+            padding-left: 10px;
+        }
+        .user-item {
+            cursor: pointer;
+            margin: 5px 0;
+        }
+        .user-item:hover {
+            background-color: #f0f0f0;
+        }
+        .button {
+            margin-top: 10px;
+            padding: 5px 10px;
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        .edit-icon {
+            cursor: pointer;
+            margin-left: 10px;
+            color: #007BFF;
+        }
+        .remove-icon {
+            color: red;
+            cursor: pointer;
+            margin-left: 5px;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.4);
+            padding-top: 60px;
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+        }
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .suggestions, #selectedItems {
+            list-style-type: none;
+            padding: 0;
+        }
+        .suggestions li, #selectedItems li {
+            padding: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+        }
+        .suggestions li:hover, #selectedItems li:hover {
+            background-color: #ddd;
+        }
+        .delete-icon {
+            cursor: pointer;
+            color: red;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="user-list">
+        <h3>User Emails</h3>
+        <ul id="userList">
+            {% for email in emails %}
+            <li class="user-item" onclick="showUserDetails('{{ email }}')">{{ email }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    <div class="user-details">
+        <h3>User Details</h3>
+        <div id="userDetails"></div>
+    </div>
+
+    <!-- Modal for editing ST IDs -->
+    <div id="stIdModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h3>Edit ST IDs</h3>
+            <input type="text" id="stIdInput" placeholder="Type to search emails..." oninput="showSuggestions(this.value)">
+            <ul id="suggestionsList" class="suggestions"></ul>
+            <h4>Current Items</h4>
+            <ul id="selectedItems"></ul>
+            <button class="button" onclick="submitStIds()">Submit</button>
+        </div>
+    </div>
+
+    <script>
+        console.log('Script loaded'); // Initial log to ensure script is running
+
+        let currentUserEmail = '';
+        let tempSelectedItems = []; // Temporary list to hold selected items
+        const suggestions = ['a', 'b', 'c']; // Example suggestions
+
+        function showUserDetails(email) {
+            console.log('Fetching details for:', email); // Debugging line
+            fetch(`/get_user/${email}`)
+                .then(response => response.json())
+                .then(data => {
+                    console.log('User data:', data); // Debugging line
+                    const userDetails = document.getElementById('userDetails');
+                    userDetails.innerHTML = `
+                        <p>Email: ${data.email}</p>
+                        <p>Name: <span id="userName">${data.name}</span> <span class="edit-icon" onclick="editName('${data.email}')">&#9998;</span></p>
+                        <p>Role: <span id="userRole">${data.role}</span> <span class="edit-icon" onclick="editRole('${data.email}')">&#9998;</span></p>
+                        <p>ST IDs: <span id="st_ids">${Array.isArray(data.st_ids) ? data.st_ids.join(', ') : 'None'}</span> <span class="edit-icon" onclick="openModal('${data.email}', ${JSON.stringify(data.st_ids || [])})">&#9998;</span></p>
+                    `;
+                });
+        }
+
+        function openModal(email, stIds) {
+            console.log('Opening modal for:', email); // Debugging line
+            console.log('ST IDs:', stIds); // Debugging line
+            currentUserEmail = email;
+            tempSelectedItems = Array.isArray(stIds) ? [...stIds] : []; // Ensure stIds is an array
+            console.log('Temp selected items:', tempSelectedItems); // Debugging line
+            populateSelectedItems();
+            showSuggestions('');
+            document.getElementById('stIdModal').style.display = 'block';
+        }
+
+        function closeModal() {
+            document.getElementById('stIdModal').style.display = 'none';
+        }
+
+        function showSuggestions(value) {
+            const suggestionsList = document.getElementById('suggestionsList');
+            suggestionsList.innerHTML = '';
+            const filteredSuggestions = suggestions.filter(suggestion => suggestion.includes(value));
+            filteredSuggestions.forEach(suggestion => {
+                const li = document.createElement('li');
+                li.textContent = suggestion;
+                li.onclick = () => addTempItem(suggestion);
+                suggestionsList.appendChild(li);
+            });
+        }
+
+        function addTempItem(item) {
+            if (!tempSelectedItems.includes(item)) {
+                tempSelectedItems.push(item);
+                populateSelectedItems();
+            }
+        }
+
+        function populateSelectedItems() {
+            const selectedItems = document.getElementById('selectedItems');
+            selectedItems.innerHTML = '';
+            tempSelectedItems.forEach((item, index) => {
+                const li = document.createElement('li');
+                li.innerHTML = `
+                    ${item} <span class="delete-icon" onclick="deleteTempItem(${index})">-</span>
+                `;
+                selectedItems.appendChild(li);
+            });
+        }
+
+        function deleteTempItem(index) {
+            tempSelectedItems.splice(index, 1);
+            populateSelectedItems();
+        }
+
+        function submitStIds() {
+            fetch('/update_user', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ email: currentUserEmail, st_ids: tempSelectedItems })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    console.log('ST IDs updated successfully');
+                    document.getElementById('st_ids').textContent = tempSelectedItems.join(', ');
+                    closeModal();
+                }
+            });
+        }
+
+        // Close the modal when clicking outside of it
+        window.onclick = function(event) {
+            const modal = document.getElementById('stIdModal');
+            if (event.target == modal) {
+                closeModal();
+            }
+        }
+    </script>
+</body>
+</html>

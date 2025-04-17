@@ -1,0 +1,125 @@
+from flask import Flask, request, redirect, url_for, render_template, session, jsonify
+from pymongo import MongoClient
+from flask_session import Session
+from werkzeug.security import generate_password_hash, check_password_hash
+import os
+import certifi
+from datetime import timedelta
+
+app = Flask(__name__)
+app.config['SECRET_KEY'] = os.urandom(24)  # Secret key for session management
+
+# Set session lifetime to 48 hours
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=48)
+
+# MongoDB connection
+MONGO_URI = "mongodb+srv://dobriyalhitesh1:L6D9qLy5H4l196cw@cluster0.6sx9pme.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+mongo_client = MongoClient(MONGO_URI, tls=True, tlsCAFile=certifi.where())
+db = mongo_client['Ils']
+# 🔹 MongoDB Collections
+collection = db['UserAuthData']
+mappings_collection = db['EmailMappings']
+session_collection = db['SessionData']
+
+# Flask-Session configuration
+app.config['SESSION_TYPE'] = 'mongodb'
+app.config['SESSION_MONGODB'] = mongo_client
+app.config['SESSION_MONGODB_DB'] = 'session_db'
+app.config['SESSION_MONGODB_COLLECT'] = 'sessions'
+Session(app)
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if 'user' in session:
+        return redirect(url_for('dashboard'))  # Redirect to dashboard if session exists
+
+    if request.method == 'POST':
+        email = request.form['email'].lower()
+        password = request.form['password']
+
+        user = db.users.find_one({"email": email})
+        if user and check_password_hash(user['password'], password):
+            session.permanent = True  # Make the session permanent
+            session['user'] = email  # Store user in session
+            return redirect(url_for('dashboard'))
+        else:
+            return redirect(url_for('login', error='Invalid credentials'))
+
+    return render_template("login_page.html")
+
+@app.route('/logout')
+def logout():
+    session.pop('user', None)  # Remove user from session
+    return redirect(url_for('login'))
+
+@app.route('/')
+def home():
+    if 'user' in session:
+        return redirect(url_for('dashboard'))
+    return redirect(url_for('login'))
+
+@app.route('/dashboard')
+def dashboard():
+    if 'user' in session:
+        email = session['user']
+        user = db.users.find_one({"email": email}, {"_id": 0, "password": 0})
+        name = user.get('name', 'User')  # Default to 'User' if name is not found
+        return render_template("dashboard.html", name=name)
+    return redirect(url_for('login'))
+
+@app.route('/manage_users')
+def manage_users():
+    if 'user' in session:
+        email = session['user']
+        user = db.users.find_one({"email": email}, {"_id": 0, "password": 0})
+        if user.get('role') == 'Admin':
+            users = list(db.users.find({}, {"_id": 0, "password": 0}))  # Exclude password
+            return render_template("manage_users.html", users=users)
+        else:
+            return "Access Denied: You do not have permission to view this page.", 403
+    return redirect(url_for('login'))
+
+@app.route('/get_user/<email>')
+def get_user(email):
+    user = db.users.find_one({"email": email}, {"_id": 0, "password": 0})
+    return jsonify(user)
+
+@app.route('/update_user', methods=['POST'])
+def update_user():
+    data = request.json
+    email = data['email'].lower()
+    user = db.users.find_one({"email": email}, {"_id": 0, "password": 0})
+    name = data.get('name', user.get('name', 'User'))
+    role = data.get('role', user.get('role', 'User'))
+
+    db.users.update_one(
+        {"email": email},
+        {"$set": {"name": name, "role": role}}
+    )
+    return jsonify({"status": "success"})
+
+@app.route('/update_password', methods=['POST'])
+def update_password():
+    data = request.json
+    email = data['email'].lower()
+    new_password = generate_password_hash(data['new_password'])
+
+    db.users.update_one(
+        {"email": email},
+        {"$set": {"password": new_password}}
+    )
+    return jsonify({"status": "success"})
+
+# ✅ Utility: Check valid session ID
+def get_valid_sid(email):
+    session = session_collection.find_one({"Email": email})
+    if session and "SID" in session and "Timestamp" in session:
+        if datetime.datetime.utcnow() - session["Timestamp"] < SESSION_TIMEOUT:
+            return session["SID"]
+    return None
+
+
+
+
+if __name__ == '__main__':
+    app.run(debug=True, port=5050)

@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <style>
+        .logout-icon {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            cursor: pointer;
+            font-size: 24px;
+        }
+        .button-container {
+            margin-top: 20px;
+        }
+        .button {
+            display: inline-block;
+            padding: 10px 20px;
+            margin: 10px;
+            font-size: 16px;
+            cursor: pointer;
+            text-decoration: none;
+            color: white;
+            background-color: #007BFF;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Welcome, {{ name }}!</h1>
+    <a href="/logout" class="logout-icon" title="Logout">&#x23FB;</a> <!-- Power icon -->
+    <div class="button-container">
+        <a href="/dashboard/st" class="button">Code for ST</a>
+        <a href="/dashboard/pt" class="button">Code for PT</a>
+    </div>
+</body>
+</html>

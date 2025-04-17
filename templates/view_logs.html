@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>OTP Logs Viewer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        .filters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 20px;
+            align-items: center;
+        }
+
+        .filters select, .filters button {
+            padding: 5px 10px;
+            font-size: 14px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        table th, table td {
+            padding: 8px;
+            border: 1px solid #ccc;
+            text-align: left;
+        }
+
+        .pagination {
+            margin-top: 15px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .pagination button {
+            padding: 6px 12px;
+        }
+
+        .clickable {
+            color: blue;
+            cursor: pointer;
+            text-decoration: underline;
+        }
+
+        #log-details {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px dashed #666;
+            background-color: #f9f9f9;
+        }
+
+        .danger-button {
+            background-color: #e53e3e;
+            color: white;
+            border: none;
+            padding: 5px 12px;
+            font-size: 14px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+
+        .danger-button:hover {
+            background-color: #c53030;
+        }
+    </style>
+</head>
+<body>
+    <h2>OTP Logs Viewer</h2>
+
+    <div class="filters">
+        <select id="timeFilter">
+            <option value="today" selected>Today</option>
+            <option value="week">This Week</option>
+            <option value="month">This Month</option>
+        </select>
+
+        <select id="userFilter">
+            <option value="">All Users</option>
+        </select>
+
+        <button onclick="fetchLogs()">Apply Filter</button>
+
+        <!-- ✅ New "Delete All Logs" Button -->
+        <button class="danger-button" onclick="deleteAllLogs()">Delete All Logs</button>
+    </div>
+
+    <table id="logsTable">
+        <thead>
+            <tr>
+                <th>User ID</th>
+                <th>Email IDs</th>
+                <th>Type</th>
+                <th>Timestamp</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <div class="pagination">
+        <button onclick="prevPage()">Previous</button>
+        <button onclick="nextPage()">Next</button>
+    </div>
+
+    <div id="log-details" style="display: none;"></div>
+
+    <script>
+        let currentPage = 1;
+        let totalLogs = 0;
+        const logsPerPage = 10;
+
+        async function fetchLogs(resetPage = true) {
+            if (resetPage) currentPage = 1;
+
+            const filter = document.getElementById("timeFilter").value;
+            const userId = document.getElementById("userFilter").value;
+
+            const response = await fetch("/get_logs", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    filter: filter,
+                    user_id: userId,
+                    page: currentPage
+                })
+            });
+
+            const data = await response.json();
+            totalLogs = data.total;
+
+            const tbody = document.querySelector("#logsTable tbody");
+            tbody.innerHTML = "";
+
+            if (data.logs.length === 0) {
+                tbody.innerHTML = "<tr><td colspan='4'>No logs found</td></tr>";
+                return;
+            }
+
+            data.logs.forEach(log => {
+                const row = document.createElement("tr");
+
+                const userCell = document.createElement("td");
+                userCell.innerHTML = `<span class='clickable' onclick="showLogDetails(${JSON.stringify(log).replace(/"/g, '&quot;')})">${log.user_id}</span>`;
+                row.appendChild(userCell);
+
+                const emails = log.email_ids ? log.email_ids.join(", ") : log.email_id || '';
+                row.innerHTML += `<td>${emails}</td>`;
+                row.innerHTML += `<td>${log.type}</td>`;
+                row.innerHTML += `<td>${log.timestamp}</td>`;
+
+                tbody.appendChild(row);
+            });
+        }
+
+        function nextPage() {
+            if (currentPage * logsPerPage < totalLogs) {
+                currentPage++;
+                fetchLogs(false);
+            }
+        }
+
+        function prevPage() {
+            if (currentPage > 1) {
+                currentPage--;
+                fetchLogs(false);
+            }
+        }
+
+        function showLogDetails(log) {
+            const div = document.getElementById("log-details");
+            div.style.display = "block";
+            div.innerHTML = `
+                <strong>User ID:</strong> ${log.user_id}<br>
+                <strong>Email IDs:</strong> ${log.email_ids ? log.email_ids.join(', ') : log.email_id}<br>
+                <strong>Type:</strong> ${log.type}<br>
+                <strong>Timestamp:</strong> ${log.timestamp}
+            `;
+        }
+
+        async function populateUserFilter() {
+            const res = await fetch("/get_all_emails");
+            const data = await res.json();
+
+            const userIds = new Set();
+            const logsRes = await fetch("/get_logs", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({})
+            });
+
+            const logsData = await logsRes.json();
+            logsData.logs.forEach(log => userIds.add(log.user_id));
+
+            const select = document.getElementById("userFilter");
+            select.innerHTML = '<option value="">All Users</option>';
+            Array.from(userIds).forEach(id => {
+                const opt = document.createElement("option");
+                opt.value = id;
+                opt.text = id;
+                select.appendChild(opt);
+            });
+        }
+
+        // ✅ Updated Delete All Logs function to use DELETE method
+        async function deleteAllLogs() {
+            const confirmDelete = confirm("Are you sure you want to delete all logs? This action cannot be undone.");
+            if (!confirmDelete) return;
+
+            const response = await fetch("/delete_all_logs", {
+                method: "DELETE"
+            });
+
+            const result = await response.json();
+            if (response.ok && result.status === "success") {
+                alert("All logs have been deleted.");
+                fetchLogs();
+            } else {
+                alert("Error deleting logs: " + (result.message || "Unknown error"));
+            }
+        }
+
+
+        window.onload = async () => {
+            await populateUserFilter();
+            await fetchLogs();
+        }
+    </script>
+</body>
+</html>

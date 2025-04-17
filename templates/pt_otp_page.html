@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Email OTP Selector</title>
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: #333;
+      text-align: center;
+      padding: 50px 20px;
+      margin: 0;
+    }
+
+    .back-button {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      background: transparent;
+      border: none;
+      font-size: 24px;
+      color: white;
+      cursor: pointer;
+      transition: transform 0.3s;
+    }
+
+    .back-button:hover {
+      transform: translateX(-5px);
+    }
+
+    h1, h3 {
+      color: white;
+      margin: 10px 0;
+    }
+
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 15px;
+      max-width: 450px;
+      margin: auto;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    }
+
+    .input-container {
+      position: relative;
+      display: inline-block;
+      margin: 20px 0;
+    }
+
+    input[type="text"] {
+      padding: 12px 15px;
+      width: 260px;
+      font-size: 16px;
+      border: 2px solid #ccc;
+      border-radius: 8px;
+      outline: none;
+      transition: 0.2s;
+    }
+
+    input[type="text"]:focus {
+      border-color: #667eea;
+      box-shadow: 0 0 5px #667eea44;
+    }
+
+    button {
+      padding: 12px 18px;
+      font-size: 16px;
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      margin-left: 10px;
+      transition: background 0.3s ease;
+    }
+
+    button:hover {
+      background: #5a67d8;
+    }
+
+    .suggestions-list {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      width: 100%;
+      background: white;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+      display: none;
+      z-index: 1000;
+      max-height: 150px;
+      overflow-y: auto;
+    }
+
+    .suggestion-item {
+      padding: 10px 15px;
+      font-size: 15px;
+      cursor: pointer;
+      border-bottom: 1px solid #eee;
+      transition: background 0.2s;
+    }
+
+    .suggestion-item:hover {
+      background: #f1f5f9;
+    }
+
+    .tiles-container {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 25px;
+      margin-top: 30px;
+    }
+
+    .tile {
+      position: relative;
+      background: #ffffff;
+      border-radius: 12px;
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+      width: 250px;
+      padding: 20px;
+      transition: transform 0.3s, background-color 0.3s;
+    }
+
+    .tile.updated {
+      background-color: #f0fff4 !important;
+      animation: pulse 0.6s ease-in-out;
+    }
+
+    @keyframes pulse {
+      0% { background-color: #f0fff4; }
+      100% { background-color: white; }
+    }
+
+    .tile:hover {
+      transform: translateY(-5px);
+    }
+
+    .tile h4 {
+      margin-bottom: 10px;
+      color: #4a5568;
+    }
+
+    .tile p {
+      margin: 6px 0;
+      color: #555;
+      font-size: 14px;
+    }
+
+    .delete-btn {
+      background: #ff5e57;
+      color: white;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 14px;
+      margin-top: 10px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    .delete-btn:hover {
+      background: #e3342f;
+    }
+
+    .refresh-icon {
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      width: 40px;
+      height: 40px;
+      background: #edf2f7;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      color: #4a5568;
+      font-size: 14px;
+      cursor: pointer;
+      box-shadow: 0 0 0 2px #e2e8f0 inset;
+      transition: background 0.2s;
+    }
+
+    .refresh-icon:hover {
+      background: #e2e8f0;
+    }
+  </style>
+</head>
+<body>
+  <button class="back-button" onclick="window.location.href='/dashboard'">&#8592;</button>
+  <h1>Email OTP Selector</h1>
+  <h3>Select an email for OTP</h3>
+
+  <div class="container">
+    <div class="input-container">
+      <input type="text" id="email-input" placeholder="Select Email" autocomplete="off" oninput="filterEmails()">
+      <button id="add-button" onclick="selectEmail()">Add</button>
+      <div id="suggestions" class="suggestions-list"></div>
+    </div>
+  </div>
+
+  <div id="email-tiles" class="tiles-container"></div>
+
+  <script>
+    const emailList = {{ pt_emails|tojson }};
+    let selectedEmail = null;
+    let fetchInterval;
+    let stopTimeout;
+    let refreshCountdown = 40;
+    let countdownInterval;
+    let isStopped = false;
+
+
+    function escapeEmail(email) {
+      return email.replace(/[@.]/g, '_');
+    }
+
+    function filterEmails() {
+      const query = $('#email-input').val().toLowerCase();
+      const suggestions = emailList.filter(email => email.toLowerCase().includes(query));
+      const suggestionsList = $('#suggestions').empty();
+
+      if (query && suggestions.length > 0) {
+        suggestions.forEach(email => {
+          suggestionsList.append(`<div class="suggestion-item" onclick="selectSuggestion('${email}')">${email}</div>`);
+        });
+        suggestionsList.show();
+      } else {
+        suggestionsList.hide();
+      }
+    }
+
+    function selectSuggestion(email) {
+      $('#email-input').val(email);
+      $('#suggestions').hide();
+    }
+
+    function selectEmail() {
+      const email = $('#email-input').val().trim();
+      if (!email || selectedEmail) return;
+
+      selectedEmail = email;
+      $('#email-input').val('').prop('disabled', true);
+      $('#add-button').hide();
+      createTile(email);
+      fetchAndStartTimer(email); // First fetch & timer
+    }
+
+    function createTile(email) {
+      const id = escapeEmail(email);
+      const tile = $(`
+        <div class="tile" id="tile-${id}">
+          <div class="refresh-icon" id="refresh-${id}" title="Click to refresh">40</div>
+          <h4>${email.split('@')[0]}</h4>
+              <p id="date-${id}">Date: Loading...</p>
+              <p id="time-${id}">Time: Loading...</p>
+              <p id="otp-${id}">OTP: Loading...</p>
+          <button class="delete-btn" onclick="removeTile('${email}')">Remove</button>
+        </div>
+      `);
+      $('#email-tiles').append(tile);
+    }
+
+    function fetchAndStartTimer(email) {
+  isStopped = false; // reset flag
+  fetchOTP(email, () => {
+    if (!isStopped) startCountdown(email);
+    fetchInterval = setInterval(() => {
+      fetchOTP(email, () => {
+        if (!isStopped) startCountdown(email);
+      });
+    }, 40000);
+
+    stopTimeout = setTimeout(() => {
+      isStopped = true; // set stop flag
+      clearInterval(fetchInterval);
+      clearInterval(countdownInterval);
+      const icon = $(`#refresh-${escapeEmail(email)}`);
+      icon.text("↻").attr('title', 'Click to refresh manually').css('font-size', '18px').on('click', () => {
+        icon.off('click').css('font-size', '14px');
+        fetchAndStartTimer(email); // reinitiate
+      });
+    }, 321000);
+  });
+}
+
+
+    function startCountdown(email) {
+      clearInterval(countdownInterval);
+      refreshCountdown = 40;
+      const id = escapeEmail(email);
+      $(`#refresh-${id}`).text(refreshCountdown);
+
+      countdownInterval = setInterval(() => {
+        refreshCountdown--;
+        if (refreshCountdown >= 0) {
+          $(`#refresh-${id}`).text(refreshCountdown);
+        }
+      }, 1000);
+    }
+
+    function fetchOTP(email, callback) {
+      const id = escapeEmail(email);
+      fetch('/dashboard/pt/fetch_otps', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email_ids: [email] })
+      })
+      .then(res => res.json())
+      .then(data => {
+        const otpData = data.otps[email];
+        if (!otpData) return;
+        $(`#otp-${id}`).text(`OTP: ${otpData.otp}`);
+        $(`#date-${id}`).text(`Date: ${otpData.date}`);
+        $(`#time-${id}`).text(`Time: ${otpData.time}`);
+
+        const tile = $(`#tile-${id}`);
+        tile.addClass('updated');
+        setTimeout(() => tile.removeClass('updated'), 600);
+
+        if (callback) callback();
+      });
+    }
+
+    function removeTile(email) {
+      clearInterval(fetchInterval);
+      clearInterval(countdownInterval);
+      clearTimeout(stopTimeout);
+      selectedEmail = null;
+      $(`#tile-${escapeEmail(email)}`).remove();
+      $('#email-input').prop('disabled', false);
+      $('#add-button').show();
+    }
+  </script>
+</body>
+</html>
