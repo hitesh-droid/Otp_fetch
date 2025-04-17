@@ -10,3 +10,4 @@ pyotp~=2.9.0
 urllib3~=2.4.0
 pycryptodome~=3.22.0
 gunicorn
+flask-session
